@@ -1,22 +1,30 @@
 {
   "id": "alisupen",
   "name": "Alisupen",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "author": "mrwan218",
-  "description": "Integrated Update Manager for Noctalia Shell – consolidates Pacman, AUR, and Flatpak updates with fine-grained control.",
+  "description": "Integrated Update Manager for Noctalia Shell — consolidates Pacman, AUR, and Flatpak updates with fine-grained control.",
   "license": "MIT",
-  "url": "https://github.com/mrwan218/ALISUPEN",
-  "entries": {
-    "barWidget": "BarWidget.qml",
+  "repository": "https://github.com/mrwan218/ALISUPEN",
+  "minNoctaliaVersion": "4.6.6",
+  "tags": ["Bar", "System"],
+  "entryPoints": {
     "main": "Main.qml",
+    "barWidget": "BarWidget.qml",
+    "panel": "Panel.qml",
     "settings": "Settings.qml"
   },
-  "requires": {
-    "noctaliaShell": ">=4.7.0"
-  },
-  "permissions": [
-    "process.execute",
-    "pluginApi.settings",
-    "notifications"
-  ]
+  "metadata": {
+    "commandPrefix": "alisupen",
+    "defaultSettings": {
+      "refreshInterval": 30,
+      "showPacman": true,
+      "showAur": true,
+      "showFlatpak": true,
+      "aurHelper": "auto",
+      "skipPkgbuild": false,
+      "removeBuildDeps": true,
+      "excludedPkgs": []
+    }
+  }
 }

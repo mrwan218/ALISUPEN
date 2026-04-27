@@ -1,34 +1,25 @@
-import QtQuick 2.15
-import QtQuick.Layouts 1.15
-import QtQuick.Controls 2.15
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+import qs.Commons
+import qs.Widgets
+import qs.Services.UI
 
 /*  Alisupen – Settings.qml
  *  Plugin configuration panel accessible from Noctalia's Settings → Plugins.
  *
- *  Settings are persisted via pluginApi and read back by Main.qml on reload.
+ *  Uses pluginApi.pluginSettings for reading/writing and
+ *  pluginApi.saveSettings() for persistence.
  */
 
-Rectangle {
+Item {
     id: settingsRoot
-    color: "transparent"
 
-    // ── Settings state (initialized from pluginApi) ──────────
-    property int    refreshInterval:  pluginApi.get("refreshInterval", 30)
-    property bool   showPacman:       pluginApi.get("showPacman", true)
-    property bool   showAur:          pluginApi.get("showAur", true)
-    property bool   showFlatpak:      pluginApi.get("showFlatpak", true)
-    property string aurHelper:        pluginApi.get("aurHelper", "auto")
-    property bool   skipPkgbuild:     pluginApi.get("skipPkgbuild", false)
-    property bool   removeBuildDeps:  pluginApi.get("removeBuildDeps", true)
-    property string excludedPkgsText: {
-        var arr = pluginApi.get("excludedPkgs", [])
-        return arr.join(", ")
-    }
+    // ── Injected by PluginService ────────────────────────────
+    property var pluginApi: null
 
-    // ── Helper to save a value ───────────────────────────────
-    function save(key, value) {
-        pluginApi.set(key, value)
-    }
+    // ── Settings shortcuts ───────────────────────────────────
+    readonly property var s: pluginApi?.pluginSettings ?? ({})
 
     implicitWidth:  400
     implicitHeight: settingsCol.implicitHeight + 32
@@ -39,15 +30,15 @@ Rectangle {
     ColumnLayout {
         id: settingsCol
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 14
+        anchors.margins: Style.marginM
+        spacing: Style.marginM
 
         // ── Title ─────────────────────────────────────────────
-        Text {
+        NText {
             text: "Alisupen Settings"
-            color: "#cba6f7"
-            font.pixelSize: 18
             font.bold: true
+            font.pixelSize: Style.fontSizeL
+            color: Color.mPrimary
         }
 
         // ══════════════════════════════════════════════════════
@@ -57,7 +48,7 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Style.marginS
 
             Slider {
                 id: intervalSlider
@@ -65,11 +56,13 @@ Rectangle {
                 from: 5
                 to: 120
                 stepSize: 5
-                value: settingsRoot.refreshInterval
+                value: settingsRoot.s.refreshInterval ?? 30
 
                 onMoved: {
-                    settingsRoot.refreshInterval = Math.round(value)
-                    save("refreshInterval", settingsRoot.refreshInterval)
+                    if (settingsRoot.pluginApi) {
+                        settingsRoot.pluginApi.pluginSettings.refreshInterval = Math.round(value)
+                        settingsRoot.pluginApi.saveSettings()
+                    }
                 }
 
                 background: Rectangle {
@@ -78,13 +71,13 @@ Rectangle {
                     width: intervalSlider.availableWidth
                     height: 4
                     radius: 2
-                    color: "#313244"
+                    color: Color.mSurfaceVariant
 
                     Rectangle {
                         width: intervalSlider.visualPosition * parent.width
                         height: parent.height
                         radius: 2
-                        color: "#cba6f7"
+                        color: Color.mPrimary
                     }
                 }
 
@@ -92,14 +85,13 @@ Rectangle {
                     x: intervalSlider.leftPadding + intervalSlider.visualPosition * (intervalSlider.availableWidth - width)
                     y: intervalSlider.topPadding + intervalSlider.availableHeight / 2 - height / 2
                     width: 16; height: 16; radius: 8
-                    color: intervalSlider.pressed ? "#b4befe" : "#cba6f7"
+                    color: intervalSlider.pressed ? Color.mSecondary : Color.mPrimary
                 }
             }
 
-            Text {
-                text: settingsRoot.refreshInterval + " min"
-                color: "#cdd6f4"
-                font.pixelSize: 12
+            NText {
+                text: Math.round(intervalSlider.value) + " min"
+                font.pixelSize: Style.fontSizeM
                 Layout.minimumWidth: 56
                 horizontalAlignment: Text.AlignRight
             }
@@ -112,26 +104,32 @@ Rectangle {
 
         ToggleRow {
             label: "Show Pacman updates"
-            checked: settingsRoot.showPacman
+            checked: settingsRoot.s.showPacman ?? true
             onToggled: {
-                settingsRoot.showPacman = checked
-                save("showPacman", checked)
+                if (settingsRoot.pluginApi) {
+                    settingsRoot.pluginApi.pluginSettings.showPacman = checked
+                    settingsRoot.pluginApi.saveSettings()
+                }
             }
         }
         ToggleRow {
             label: "Show AUR updates"
-            checked: settingsRoot.showAur
+            checked: settingsRoot.s.showAur ?? true
             onToggled: {
-                settingsRoot.showAur = checked
-                save("showAur", checked)
+                if (settingsRoot.pluginApi) {
+                    settingsRoot.pluginApi.pluginSettings.showAur = checked
+                    settingsRoot.pluginApi.saveSettings()
+                }
             }
         }
         ToggleRow {
             label: "Show Flatpak updates"
-            checked: settingsRoot.showFlatpak
+            checked: settingsRoot.s.showFlatpak ?? true
             onToggled: {
-                settingsRoot.showFlatpak = checked
-                save("showFlatpak", checked)
+                if (settingsRoot.pluginApi) {
+                    settingsRoot.pluginApi.pluginSettings.showFlatpak = checked
+                    settingsRoot.pluginApi.saveSettings()
+                }
             }
         }
 
@@ -142,7 +140,7 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 6
+            spacing: Style.marginS
 
             Repeater {
                 model: [
@@ -161,24 +159,28 @@ Rectangle {
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: 6
-                        color: settingsRoot.aurHelper === modelData.value
-                               ? "#cba6f7"
-                               : (parent.containsMouse ? "#45475a" : "#313244")
+                        radius: Style.radiusM
+                        color: settingsRoot.s.aurHelper === modelData.value
+                               ? Color.mPrimary
+                               : (parent.containsMouse ? Color.mSurfaceVariant : Color.mSurface)
+                        border.color: settingsRoot.s.aurHelper === modelData.value ? Color.mPrimary : "transparent"
+                        border.width: 1
                     }
 
-                    Text {
+                    NText {
                         id: helperLbl
                         anchors.centerIn: parent
                         text: modelData.label
-                        color: settingsRoot.aurHelper === modelData.value ? "#1e1e2e" : "#cdd6f4"
-                        font.pixelSize: 11
-                        font.bold: settingsRoot.aurHelper === modelData.value
+                        font.pixelSize: Style.fontSizeS
+                        font.bold: settingsRoot.s.aurHelper === modelData.value
+                        color: settingsRoot.s.aurHelper === modelData.value ? Color.mOnPrimary : Color.mOnSurface
                     }
 
                     onClicked: {
-                        settingsRoot.aurHelper = modelData.value
-                        save("aurHelper", modelData.value)
+                        if (settingsRoot.pluginApi) {
+                            settingsRoot.pluginApi.pluginSettings.aurHelper = modelData.value
+                            settingsRoot.pluginApi.saveSettings()
+                        }
                     }
                 }
             }
@@ -191,18 +193,22 @@ Rectangle {
 
         ToggleRow {
             label: "Skip PKGBUILD review"
-            checked: settingsRoot.skipPkgbuild
+            checked: settingsRoot.s.skipPkgbuild ?? false
             onToggled: {
-                settingsRoot.skipPkgbuild = checked
-                save("skipPkgbuild", checked)
+                if (settingsRoot.pluginApi) {
+                    settingsRoot.pluginApi.pluginSettings.skipPkgbuild = checked
+                    settingsRoot.pluginApi.saveSettings()
+                }
             }
         }
         ToggleRow {
             label: "Remove build dependencies after install"
-            checked: settingsRoot.removeBuildDeps
+            checked: settingsRoot.s.removeBuildDeps ?? true
             onToggled: {
-                settingsRoot.removeBuildDeps = checked
-                save("removeBuildDeps", checked)
+                if (settingsRoot.pluginApi) {
+                    settingsRoot.pluginApi.pluginSettings.removeBuildDeps = checked
+                    settingsRoot.pluginApi.saveSettings()
+                }
             }
         }
 
@@ -211,26 +217,21 @@ Rectangle {
         // ══════════════════════════════════════════════════════
         SectionLabel { text: "Excluded Packages" }
 
-        TextField {
+        NTextInput {
             id: excludeField
             Layout.fillWidth: true
             placeholderText: "e.g. linux, nvidia-dkms, mesa"
-            placeholderTextColor: "#6c7086"
-            text: settingsRoot.excludedPkgsText
-            color: "#cdd6f4"
-            font.pixelSize: 12
-
-            background: Rectangle {
-                radius: 6
-                color: "#313244"
-                border.color: excludeField.activeFocus ? "#cba6f7" : "#45475a"
-                border.width: 1
+            text: {
+                var arr = settingsRoot.s.excludedPkgs ?? []
+                return arr.join(", ")
             }
 
             onEditingFinished: {
-                var arr = text.split(",").map(function(s) { return s.trim() }).filter(function(s) { return s.length > 0 })
-                settingsRoot.excludedPkgsText = text
-                save("excludedPkgs", arr)
+                if (settingsRoot.pluginApi) {
+                    var arr = text.split(",").map(function(s) { return s.trim() }).filter(function(s) { return s.length > 0 })
+                    settingsRoot.pluginApi.pluginSettings.excludedPkgs = arr
+                    settingsRoot.pluginApi.saveSettings()
+                }
             }
         }
 
@@ -241,50 +242,41 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Style.marginS
 
-            SettingsButton {
-                label: "Reset Defaults"
-                accent: false
+            NButton {
+                text: "Reset Defaults"
+                highlighted: false
                 onClicked: {
-                    intervalSlider.value = 30
-                    settingsRoot.refreshInterval = 30
-                    settingsRoot.showPacman = true
-                    settingsRoot.showAur = true
-                    settingsRoot.showFlatpak = true
-                    settingsRoot.aurHelper = "auto"
-                    settingsRoot.skipPkgbuild = false
-                    settingsRoot.removeBuildDeps = true
-                    settingsRoot.excludedPkgsText = ""
-                    excludeField.text = ""
-
-                    save("refreshInterval", 30)
-                    save("showPacman", true)
-                    save("showAur", true)
-                    save("showFlatpak", true)
-                    save("aurHelper", "auto")
-                    save("skipPkgbuild", false)
-                    save("removeBuildDeps", true)
-                    save("excludedPkgs", [])
+                    if (settingsRoot.pluginApi) {
+                        var defaults = {
+                            refreshInterval: 30,
+                            showPacman: true,
+                            showAur: true,
+                            showFlatpak: true,
+                            aurHelper: "auto",
+                            skipPkgbuild: false,
+                            removeBuildDeps: true,
+                            excludedPkgs: []
+                        }
+                        for (var key in defaults) {
+                            settingsRoot.pluginApi.pluginSettings[key] = defaults[key]
+                        }
+                        settingsRoot.pluginApi.saveSettings()
+                        intervalSlider.value = 30
+                    }
                 }
             }
 
-            SettingsButton {
-                label: "Revert Changes"
-                accent: true
+            NButton {
+                text: "Revert Changes"
+                highlighted: true
                 onClicked: {
-                    // Reload from pluginApi
-                    settingsRoot.refreshInterval = pluginApi.get("refreshInterval", 30)
-                    settingsRoot.showPacman      = pluginApi.get("showPacman", true)
-                    settingsRoot.showAur         = pluginApi.get("showAur", true)
-                    settingsRoot.showFlatpak     = pluginApi.get("showFlatpak", true)
-                    settingsRoot.aurHelper       = pluginApi.get("aurHelper", "auto")
-                    settingsRoot.skipPkgbuild    = pluginApi.get("skipPkgbuild", false)
-                    settingsRoot.removeBuildDeps = pluginApi.get("removeBuildDeps", true)
-                    var arr = pluginApi.get("excludedPkgs", [])
-                    settingsRoot.excludedPkgsText = arr.join(", ")
-                    excludeField.text = settingsRoot.excludedPkgsText
-                    intervalSlider.value = settingsRoot.refreshInterval
+                    // Reload from persisted settings
+                    if (settingsRoot.pluginApi) {
+                        settingsRoot.pluginApi.loadSettings()
+                        intervalSlider.value = settingsRoot.pluginApi.pluginSettings.refreshInterval ?? 30
+                    }
                 }
             }
         }
@@ -298,13 +290,13 @@ Rectangle {
 
             Rectangle {
                 width: 8; height: 8; radius: 4
-                color: "#a6e3a1"
+                color: Color.mOnSurfaceVariant
             }
-            Text {
-                text: "Plugin active – settings saved automatically"
-                color: "#6c7086"
-                font.pixelSize: 10
+            NText {
+                text: "Plugin active — settings saved automatically"
                 font.italic: true
+                font.pixelSize: Style.fontSizeS
+                color: Color.mOnSurfaceVariant
             }
         }
     }
@@ -313,16 +305,14 @@ Rectangle {
     //  Sub-components
     // ═══════════════════════════════════════════════════════════
 
-    // ── Section label ────────────────────────────────────────
-    component SectionLabel: Text {
-        color: "#a6adc8"
-        font.pixelSize: 11
+    component SectionLabel: NText {
+        color: Color.mOnSurfaceVariant
+        font.pixelSize: Style.fontSizeS
         font.bold: true
         font.capitalization: Font.AllUppercase
-        Layout.topMargin: 6
+        Layout.topMargin: Style.marginS
     }
 
-    // ── Toggle row ───────────────────────────────────────────
     component ToggleRow: RowLayout {
         id: tRow
         property string label: ""
@@ -330,19 +320,19 @@ Rectangle {
         signal toggled()
 
         Layout.fillWidth: true
-        spacing: 10
+        spacing: Style.marginS
 
-        // Custom toggle switch
+        // Toggle switch
         Rectangle {
             id: toggleTrack
             width: 36; height: 20; radius: 10
-            color: tRow.checked ? "#cba6f7" : "#45475a"
+            color: tRow.checked ? Color.mPrimary : Color.mSurfaceVariant
             Behavior on color { ColorAnimation { duration: 150 } }
 
             Rectangle {
                 id: toggleKnob
                 width: 16; height: 16; radius: 8
-                color: "#1e1e2e"
+                color: Color.mSurface
                 x: tRow.checked ? toggleTrack.width - width - 2 : 2
                 y: 2
                 Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
@@ -358,43 +348,10 @@ Rectangle {
             }
         }
 
-        Text {
+        NText {
             text: tRow.label
-            color: "#cdd6f4"
-            font.pixelSize: 12
+            font.pixelSize: Style.fontSizeM
             Layout.fillWidth: true
         }
-    }
-
-    // ── Settings button ──────────────────────────────────────
-    component SettingsButton: MouseArea {
-        id: sBtn
-        property string label: ""
-        property bool   accent: false
-        signal clicked()
-
-        implicitWidth:  sBtnLbl.width + 24
-        implicitHeight: 30
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-
-        Rectangle {
-            anchors.fill: parent
-            radius: 6
-            color: sBtn.accent
-                   ? (sBtn.containsMouse ? "#b4befe" : "#cba6f7")
-                   : (sBtn.containsMouse ? "#45475a" : "#313244")
-        }
-
-        Text {
-            id: sBtnLbl
-            anchors.centerIn: parent
-            text: sBtn.label
-            color: sBtn.accent ? "#1e1e2e" : "#cdd6f4"
-            font.pixelSize: 11
-            font.bold: sBtn.accent
-        }
-
-        onClicked: sBtn.clicked()
     }
 }

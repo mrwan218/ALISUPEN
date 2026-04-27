@@ -53,20 +53,18 @@ import json, sys
 path = '${PLUGINS_JSON}'
 with open(path) as f:
     data = json.load(f)
-before = len(data.get('plugins', []))
-data['plugins'] = [p for p in data.get('plugins', []) if p.get('id') != '${PLUGIN_ID}']
-after = len(data['plugins'])
-with open(path, 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-if before != after:
+if '${PLUGIN_ID}' in data:
+    del data['${PLUGIN_ID}']
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')
     print('Removed plugin entry from plugins.json')
 else:
     print('No entry found in plugins.json')
 "
         elif command -v jq &>/dev/null; then
             tmp=$(mktemp)
-            jq "del(.plugins[] | select(.id == \"${PLUGIN_ID}\"))" "$PLUGINS_JSON" > "$tmp" && mv "$tmp" "$PLUGINS_JSON"
+            jq "del(.${PLUGIN_ID})" "$PLUGINS_JSON" > "$tmp" && mv "$tmp" "$PLUGINS_JSON"
             success "Removed plugin entry from plugins.json"
         else
             warn "Cannot update plugins.json — install python3 or jq to clean up automatically"
@@ -172,7 +170,7 @@ fi
 
 # Validate manifest has required fields
 _valid=1
-for _field in id name version entries; do
+for _field in id name version entryPoints; do
     if ! python3 -c "import json; d=json.load(open('${MANIFEST}')); assert '${_field}' in d" 2>/dev/null; then
         if ! jq -e ".${_field}" "$MANIFEST" &>/dev/null; then
             error "manifest.json missing required field: ${_field}"
@@ -194,26 +192,31 @@ info "Registering plugin in Noctalia…"
 mkdir -p "$(dirname "$PLUGINS_JSON")"
 
 if [ ! -f "$PLUGINS_JSON" ]; then
-    # Create new plugins.json
-    echo '{"plugins":[{"id":"alisupen","enabled":true}]}' > "$PLUGINS_JSON"
+    # Create new plugins.json with correct Noctalia format (id as key)
+    cat > "$PLUGINS_JSON" << EOF
+{
+  "${PLUGIN_ID}": {
+    "enabled": true,
+    "sourceUrl": "${REPO_URL}"
+  }
+}
+EOF
     success "Created plugins.json with Alisupen registered"
 else
-    # Check if already registered
+    # Check if already registered (id as key format)
     _already=0
     if command -v python3 &>/dev/null; then
         _already=$(python3 -c "
 import json
 with open('${PLUGINS_JSON}') as f:
     data = json.load(f)
-for p in data.get('plugins', []):
-    if p.get('id') == '${PLUGIN_ID}':
-        print('1')
-        break
+if '${PLUGIN_ID}' in data and isinstance(data['${PLUGIN_ID}'], dict):
+    print('1')
 else:
     print('0')
 ")
     elif command -v jq &>/dev/null; then
-        _already=$(jq ".plugins[] | select(.id==\"${PLUGIN_ID}\") | .id" "$PLUGINS_JSON" 2>/dev/null | grep -c "alisupen" || true)
+        _already=$(jq -e ".${PLUGIN_ID}" "$PLUGINS_JSON" 2>/dev/null | grep -c "enabled" || true)
     fi
 
     if [ "$_already" -eq 1 ] || [ "$_already" = "1" ]; then
@@ -224,9 +227,8 @@ import json
 path = '${PLUGINS_JSON}'
 with open(path) as f:
     data = json.load(f)
-for p in data.get('plugins', []):
-    if p.get('id') == '${PLUGIN_ID}':
-        p['enabled'] = True
+if '${PLUGIN_ID}' in data and isinstance(data['${PLUGIN_ID}'], dict):
+    data['${PLUGIN_ID}']['enabled'] = True
 with open(path, 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
@@ -234,18 +236,18 @@ print('Plugin enabled in plugins.json')
 "
         elif command -v jq &>/dev/null; then
             tmp=$(mktemp)
-            jq "(.plugins[] | select(.id==\"${PLUGIN_ID}\")).enabled = true" "$PLUGINS_JSON" > "$tmp" && mv "$tmp" "$PLUGINS_JSON"
+            jq ".${PLUGIN_ID}.enabled = true" "$PLUGINS_JSON" > "$tmp" && mv "$tmp" "$PLUGINS_JSON"
         fi
         success "Plugin enabled in plugins.json"
     else
-        # Append entry
+        # Append entry (id as key format)
         if command -v python3 &>/dev/null; then
             python3 -c "
 import json
 path = '${PLUGINS_JSON}'
 with open(path) as f:
     data = json.load(f)
-data.setdefault('plugins', []).append({'id': '${PLUGIN_ID}', 'enabled': True})
+data['${PLUGIN_ID}'] = {'enabled': True, 'sourceUrl': '${REPO_URL}'}
 with open(path, 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
@@ -253,7 +255,7 @@ print('Plugin registered in plugins.json')
 "
         elif command -v jq &>/dev/null; then
             tmp=$(mktemp)
-            jq ".plugins += [{\"id\": \"${PLUGIN_ID}\", \"enabled\": true}]" "$PLUGINS_JSON" > "$tmp" && mv "$tmp" "$PLUGINS_JSON"
+            jq ".${PLUGIN_ID} = {\"enabled\": true, \"sourceUrl\": \"${REPO_URL}\"}" "$PLUGINS_JSON" > "$tmp" && mv "$tmp" "$PLUGINS_JSON"
         fi
         success "Plugin registered in plugins.json"
     fi

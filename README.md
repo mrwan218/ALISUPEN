@@ -1,12 +1,12 @@
 # Alisupen
 
-**Integrated Update Manager** for [Noctalia Shell](https://github.com/noctalia-dev) v4.7+
+**Integrated Update Manager** for [Noctalia Shell](https://github.com/noctalia-dev) v4.6+
 
 Alisupen consolidates package updates from **Pacman**, **AUR**, and **Flatpak** into a single interface with fine-grained control — right from your Noctalia top bar.
 
 ## Features
 
-- **Per-category counters** — Pacman (blue), AUR (purple), Flatpak (teal) at a glance
+- **Per-category counters** — Pacman, AUR, Flatpak at a glance
 - **One-click actions** — Refresh, Update All, Remove Pacman Lock
 - **Update queue** — Browse, filter, and update individual packages
 - **Auto-refresh** — Configurable interval (5–120 min) for background checks
@@ -16,6 +16,7 @@ Alisupen consolidates package updates from **Pacman**, **AUR**, and **Flatpak** 
 - **Excluded packages** — Prevent specific packages from appearing
 - **Desktop notifications** — Alert on newly available updates
 - **Progress tracking** — Visual progress bar during system updates
+- **IPC support** — CLI interaction via `alisupen` command prefix
 - **Persistent settings** — All preferences saved via pluginApi
 
 ## Installation
@@ -34,6 +35,14 @@ The installer will:
 4. Register the plugin in `~/.config/noctalia/plugins.json`
 5. Check for optional tools (pacman, paru/yay, flatpak, pkexec, notify-send)
 
+### Post-Install Steps
+
+After installing, you need to **add the widget to your bar**:
+
+1. Open **Noctalia Settings → Plugins** → enable **Alisupen**
+2. Open **Noctalia Settings → Bar** → add the Alisupen widget to Left/Center/Right section
+3. The widget will appear on your top bar
+
 ### Manual (local testing)
 
 ```bash
@@ -46,9 +55,10 @@ Register in `~/.config/noctalia/plugins.json`:
 
 ```json
 {
-  "plugins": [
-    { "id": "alisupen", "enabled": true }
-  ]
+  "alisupen": {
+    "enabled": true,
+    "sourceUrl": "https://github.com/mrwan218/ALISUPEN"
+  }
 }
 ```
 
@@ -64,6 +74,13 @@ bash ~/.config/noctalia/plugins/alisupen/install.sh --uninstall
 2. Click the Noctalia logo **8 times** to activate Debug Mode
 3. The plugin will hot-reload from disk automatically
 
+### Debugging
+
+Run Noctalia with debug output to see QML errors:
+```bash
+NOCTALIA_DEBUG=1 qs -c noctalia-shell
+```
+
 ### Official Submission
 
 Fork [noctalia-dev/noctalia-plugins](https://github.com/noctalia-dev/noctalia-plugins) and submit a PR with the validated `manifest.json`.
@@ -72,18 +89,43 @@ Fork [noctalia-dev/noctalia-plugins](https://github.com/noctalia-dev/noctalia-pl
 
 ```
 alisupen/
-├── manifest.json      # Plugin identity, version, entry points, permissions
-├── BarWidget.qml      # Top-bar badge + dropdown panel UI
-├── Main.qml           # Background service (periodic checks, Process API)
-├── Settings.qml       # Configuration panel (AUR helper, toggles, exclusions)
+├── manifest.json      # Plugin identity, entry points, default settings
+├── BarWidget.qml      # Top-bar badge (Item + visualCapsule pattern)
+├── Main.qml           # Background service (Process, IpcHandler, timers)
+├── Panel.qml          # Dropdown panel (opened via pluginApi.openPanel)
+├── Settings.qml       # Configuration panel (pluginApi.pluginSettings)
 ├── install.sh         # Automated installer/uninstaller
 ├── .gitignore
 └── README.md
 ```
 
+## Architecture
+
+The plugin follows Noctalia's official plugin architecture built on **Quickshell**:
+
+| Component | Root Type | Role |
+|-----------|-----------|------|
+| `BarWidget.qml` | `Item` | Top-bar capsule badge; calls `pluginApi.togglePanel()` |
+| `Main.qml` | `Item` | Background service with `Process` (Quickshell.Io), `IpcHandler`, timers |
+| `Panel.qml` | `Item` | Dropdown panel positioned by Noctalia's Panel system |
+| `Settings.qml` | `Item` | Settings UI using `pluginApi.pluginSettings` + `saveSettings()` |
+
+**Key imports used:**
+- `Quickshell` — ShellScreen, execDetached()
+- `Quickshell.Io` — Process, StdioCollector, IpcHandler
+- `qs.Commons` — Style, Color, Settings
+- `qs.Widgets` — NButton, NIcon, NText, NTextInput, NIconButton
+- `qs.Services.UI` — ToastService, BarService, TooltipService
+
+**Communication flow:**
+- `BarWidget` → `pluginApi.mainInstance` → reads properties from `Main.qml`
+- `BarWidget` → `pluginApi.togglePanel()` → opens `Panel.qml`
+- `Main.qml` → `IpcHandler` → exposes CLI commands
+- `Settings.qml` → `pluginApi.pluginSettings` + `saveSettings()` → persistence
+
 ## Requirements
 
-- Noctalia Shell ≥ 4.7.0
+- Noctalia Shell ≥ 4.6.6
 - Arch Linux (or Arch-based distribution)
 - `pacman` (required)
 - `paru` or `yay` (optional, for AUR updates)
