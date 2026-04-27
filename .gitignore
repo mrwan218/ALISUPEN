@@ -1,0 +1,17 @@
+# Build artifacts
+*.qmlc
+*.jsc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Noctalia cache
+.noctalia-cache/
