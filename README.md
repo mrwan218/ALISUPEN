@@ -20,6 +20,20 @@ Alisupen consolidates package updates from **Pacman**, **AUR**, and **Flatpak** 
 
 ## Installation
 
+### Automated (recommended)
+
+```bash
+# One-line install — clone and run the installer
+bash <(curl -fsSL https://raw.githubusercontent.com/mrwan218/ALISUPEN/main/install.sh)
+```
+
+The installer will:
+1. Check dependencies (git, python3/jq)
+2. Clone the plugin into `~/.config/noctalia/plugins/alisupen/`
+3. Validate `manifest.json`
+4. Register the plugin in `~/.config/noctalia/plugins.json`
+5. Check for optional tools (pacman, paru/yay, flatpak, pkexec, notify-send)
+
 ### Manual (local testing)
 
 ```bash
@@ -36,6 +50,12 @@ Register in `~/.config/noctalia/plugins.json`:
     { "id": "alisupen", "enabled": true }
   ]
 }
+```
+
+### Uninstall
+
+```bash
+bash ~/.config/noctalia/plugins/alisupen/install.sh --uninstall
 ```
 
 ### Hot Reload (Debug Mode)
@@ -56,6 +76,7 @@ alisupen/
 ├── BarWidget.qml      # Top-bar badge + dropdown panel UI
 ├── Main.qml           # Background service (periodic checks, Process API)
 ├── Settings.qml       # Configuration panel (AUR helper, toggles, exclusions)
+├── install.sh         # Automated installer/uninstaller
 ├── .gitignore
 └── README.md
 ```
