@@ -8,10 +8,9 @@ import qs.Services.UI
 
 /*  Alisupen – Panel.qml
  *  Dropdown panel opened via pluginApi.openPanel() from BarWidget.
- *  Contains category counters, action buttons, update queue with
- *  search/filter, progress indicator, and status footer.
+ *  Contains category counters, action buttons, update queue, and status.
  *
- *  Noctalia's Panel system positions this near the bar widget.
+ *  Uses only well-tested Noctalia widget types.
  */
 
 Item {
@@ -70,43 +69,13 @@ Item {
 
                 Item { Layout.fillWidth: true }
 
-                // Status pill
-                Rectangle {
-                    radius: Style.radiusM
-                    height: 22
-                    width: statusRow.width + 12
-                    color: panelRoot.isRefreshing ? Color.mSurfaceVariant :
-                           panelRoot.totalCount > 0 ? Qt.rgba(Color.mError.r, Color.mError.g, Color.mError.b, 0.12) :
-                                                       Qt.rgba(Color.mOnSurfaceVariant.r, Color.mOnSurfaceVariant.g, Color.mOnSurfaceVariant.b, 0.12)
-
-                    Row {
-                        id: statusRow
-                        anchors.centerIn: parent
-                        spacing: 4
-
-                        Rectangle {
-                            width: 6; height: 6; radius: 3
-                            color: panelRoot.isRefreshing ? Color.mOnSurfaceVariant :
-                                   panelRoot.totalCount > 0 ? Color.mError : Color.mOnSurfaceVariant
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            SequentialAnimation on scale {
-                                running: panelRoot.isRefreshing
-                                loops: Animation.Infinite
-                                NumberAnimation { from: 1.0; to: 1.6; duration: 500 }
-                                NumberAnimation { from: 1.6; to: 1.0; duration: 500 }
-                            }
-                        }
-
-                        NText {
-                            text: panelRoot.isRefreshing ? "Checking…" :
-                                  panelRoot.totalCount > 0 ? panelRoot.totalCount + " update(s)" : "Up to date"
-                            font.pixelSize: Style.fontSizeS
-                            font.bold: true
-                            color: panelRoot.isRefreshing ? Color.mOnSurfaceVariant :
-                                   panelRoot.totalCount > 0 ? Color.mError : Color.mOnSurfaceVariant
-                        }
-                    }
+                NText {
+                    text: panelRoot.isRefreshing ? "Checking…" :
+                          panelRoot.totalCount > 0 ? panelRoot.totalCount + " update(s)" : "Up to date"
+                    font.pixelSize: Style.fontSizeS
+                    font.bold: true
+                    color: panelRoot.isRefreshing ? Color.mOnSurfaceVariant :
+                           panelRoot.totalCount > 0 ? Color.mError : Color.mOnSurfaceVariant
                 }
             }
 
@@ -131,32 +100,72 @@ Item {
                 Layout.fillWidth: true
                 spacing: Style.marginS
 
-                CategoryBadge {
-                    label: "Pacman"
-                    count: panelRoot.pacmanCount
-                    badgeColor: Color.mPrimary
-                    onClicked: if (panelRoot.mainInstance) panelInstance.updateCategory("pacman")
+                // Pacman badge
+                Rectangle {
+                    radius: Style.radiusM
+                    height: 28
+                    width: pacRow.width + 16
+                    color: Color.mSurface
+                    border.color: Color.mPrimary
+                    border.width: 1
+
+                    Row {
+                        id: pacRow
+                        anchors.centerIn: parent
+                        spacing: 4
+                        NText { text: "Pacman"; font.pixelSize: Style.fontSizeS; color: Color.mPrimary; anchors.verticalCenter: parent.verticalCenter }
+                        NText { text: panelRoot.pacmanCount; font.pixelSize: Style.fontSizeS; font.bold: true; color: Color.mPrimary; anchors.verticalCenter: parent.verticalCenter }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
+                        onClicked: if (panelRoot.mainInstance) panelRoot.mainInstance.updateCategory("pacman")
+                    }
                 }
-                CategoryBadge {
-                    label: "AUR"
-                    count: panelRoot.aurCount
-                    badgeColor: Color.mSecondary
-                    onClicked: if (panelRoot.mainInstance) panelRoot.mainInstance.updateCategory("aur")
+
+                // AUR badge
+                Rectangle {
+                    radius: Style.radiusM
+                    height: 28
+                    width: aurRow.width + 16
+                    color: Color.mSurface
+                    border.color: Color.mSecondary
+                    border.width: 1
+
+                    Row {
+                        id: aurRow
+                        anchors.centerIn: parent
+                        spacing: 4
+                        NText { text: "AUR"; font.pixelSize: Style.fontSizeS; color: Color.mSecondary; anchors.verticalCenter: parent.verticalCenter }
+                        NText { text: panelRoot.aurCount; font.pixelSize: Style.fontSizeS; font.bold: true; color: Color.mSecondary; anchors.verticalCenter: parent.verticalCenter }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
+                        onClicked: if (panelRoot.mainInstance) panelRoot.mainInstance.updateCategory("aur")
+                    }
                 }
-                CategoryBadge {
-                    label: "Flatpak"
-                    count: panelRoot.flatpakCount
-                    badgeColor: Color.mTertiary
-                    onClicked: if (panelRoot.mainInstance) panelRoot.mainInstance.updateCategory("flatpak")
+
+                // Flatpak badge
+                Rectangle {
+                    radius: Style.radiusM
+                    height: 28
+                    width: flatRow.width + 16
+                    color: Color.mSurface
+                    border.color: Color.mTertiary
+                    border.width: 1
+
+                    Row {
+                        id: flatRow
+                        anchors.centerIn: parent
+                        spacing: 4
+                        NText { text: "Flatpak"; font.pixelSize: Style.fontSizeS; color: Color.mTertiary; anchors.verticalCenter: parent.verticalCenter }
+                        NText { text: panelRoot.flatpakCount; font.pixelSize: Style.fontSizeS; font.bold: true; color: Color.mTertiary; anchors.verticalCenter: parent.verticalCenter }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; hoverEnabled: true
+                        onClicked: if (panelRoot.mainInstance) panelRoot.mainInstance.updateCategory("flatpak")
+                    }
                 }
             }
 
             // ── Separator ─────────────────────────────────────
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Color.mSurfaceVariant
-            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: Color.mSurfaceVariant }
 
             // ── Action buttons ────────────────────────────────
             RowLayout {
@@ -165,42 +174,31 @@ Item {
 
                 NButton {
                     text: "Refresh"
-                    icon: "view-refresh"
                     enabled: !panelRoot.isRefreshing && !panelRoot.isUpdating
                     onClicked: if (panelRoot.mainInstance) panelRoot.mainInstance.refresh()
                 }
                 NButton {
                     text: "Update All"
-                    icon: "system-software-update"
                     highlighted: true
                     enabled: panelRoot.totalCount > 0 && !panelRoot.isRefreshing && !panelRoot.isUpdating
                     onClicked: if (panelRoot.mainInstance) panelRoot.mainInstance.updateAll()
                 }
                 NButton {
                     text: "Rm Lock"
-                    icon: "edit-delete"
                     enabled: !panelRoot.isUpdating
                     onClicked: if (panelRoot.mainInstance) panelRoot.mainInstance.removeLock()
                 }
             }
 
             // ── Separator ─────────────────────────────────────
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Color.mSurfaceVariant
-            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: Color.mSurfaceVariant }
 
             // ── Update queue header + search ───────────────────
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Style.marginS
 
-                NText {
-                    text: "Update Queue"
-                    font.bold: true
-                    font.pixelSize: Style.fontSizeM
-                }
+                NText { text: "Update Queue"; font.bold: true; font.pixelSize: Style.fontSizeM }
 
                 Item { Layout.fillWidth: true }
 
@@ -220,203 +218,95 @@ Item {
                 model: panelRoot.pendingPackages
                 spacing: 2
 
-                delegate: PackageDelegate {
+                delegate: ItemDelegate {
                     width: pkgList.width
-                    pkgName:    modelData.name
-                    pkgVersion: modelData.version
-                    pkgSource:  modelData.source
-                    pkgSize:    modelData.size
-                    visible: panelRoot.filterText === "" ||
-                             pkgName.toLowerCase().indexOf(panelRoot.filterText) !== -1
-                    height: visible ? 40 : 0
-                    onUpdateRequested: if (panelRoot.mainInstance) panelRoot.mainInstance.updatePackage(pkgName, pkgSource)
+                    height: 38
+                    padding: 2
+
+                    background: Rectangle {
+                        color: parent.hovered ? Color.mSurfaceVariant : "transparent"
+                        radius: Style.radiusM
+                    }
+
+                    contentItem: RowLayout {
+                        spacing: Style.marginS
+
+                        // Source dot
+                        Rectangle {
+                            width: 6; height: 6; radius: 3
+                            color: modelData.source === "pacman" ? Color.mPrimary :
+                                   modelData.source === "aur"     ? Color.mSecondary : Color.mTertiary
+                        }
+
+                        ColumnLayout {
+                            spacing: 0
+                            Layout.fillWidth: true
+                            NText {
+                                text: modelData.name
+                                font.pixelSize: Style.fontSizeM
+                                Layout.fillWidth: true; elide: Text.ElideRight
+                            }
+                            NText {
+                                text: modelData.version + (modelData.size ? "  (" + modelData.size + ")" : "")
+                                font.pixelSize: Style.fontSizeS
+                                color: Color.mOnSurfaceVariant
+                                Layout.fillWidth: true; elide: Text.ElideRight
+                            }
+                        }
+
+                        // Source tag
+                        Rectangle {
+                            width: srcTag.width + 8; height: 14; radius: 3
+                            color: modelData.source === "pacman" ? Qt.rgba(Color.mPrimary.r, Color.mPrimary.g, Color.mPrimary.b, 0.15) :
+                                   modelData.source === "aur"     ? Qt.rgba(Color.mSecondary.r, Color.mSecondary.g, Color.mSecondary.b, 0.15) :
+                                                                    Qt.rgba(Color.mTertiary.r, Color.mTertiary.g, Color.mTertiary.b, 0.15)
+                            NText {
+                                id: srcTag
+                                anchors.centerIn: parent
+                                text: modelData.source.toUpperCase()
+                                font.pixelSize: 8; font.bold: true
+                                color: modelData.source === "pacman" ? Color.mPrimary :
+                                       modelData.source === "aur"     ? Color.mSecondary : Color.mTertiary
+                            }
+                        }
+
+                        // Update button
+                        NIconButton {
+                            icon: "go-up"
+                            baseSize: 24
+                            onClicked: if (panelRoot.mainInstance) panelRoot.mainInstance.updatePackage(modelData.name, modelData.source)
+                        }
+                    }
+
+                    visible: panelRoot.filterText === "" || modelData.name.toLowerCase().indexOf(panelRoot.filterText) !== -1
                 }
             }
 
             // ── Empty state ───────────────────────────────────
-            ColumnLayout {
+            NText {
                 visible: panelRoot.pendingPackages.length === 0 && !panelRoot.isRefreshing
+                text: "No pending updates"
+                font.italic: true
+                color: Color.mOnSurfaceVariant
                 Layout.alignment: Qt.AlignHCenter
-                spacing: 2
-
-                NText {
-                    text: "No pending updates"
-                    font.italic: true
-                    color: Color.mOnSurfaceVariant
-                    Layout.alignment: Qt.AlignHCenter
-                }
             }
 
             // ── Refreshing indicator ──────────────────────────
-            RowLayout {
+            NText {
                 visible: panelRoot.isRefreshing
+                text: "Checking for updates…"
+                color: Color.mOnSurfaceVariant
                 Layout.alignment: Qt.AlignHCenter
-                spacing: Style.marginS
-
-                BusyIndicator {
-                    running: panelRoot.isRefreshing
-                    Layout.preferredWidth: 16
-                    Layout.preferredHeight: 16
-                }
-
-                NText {
-                    text: "Checking for updates…"
-                    color: Color.mOnSurfaceVariant
-                }
             }
 
             // ── Footer status ─────────────────────────────────
-            Rectangle {
-                Layout.fillWidth: true
-                height: 1
-                color: Color.mSurfaceVariant
-                visible: panelRoot.statusMessage.length > 0
-            }
-
+            Rectangle { Layout.fillWidth: true; height: 1; color: Color.mSurfaceVariant; visible: panelRoot.statusMessage.length > 0 }
             NText {
                 visible: panelRoot.statusMessage.length > 0
                 text: panelRoot.statusMessage
-                font.italic: true
-                font.pixelSize: Style.fontSizeS
+                font.italic: true; font.pixelSize: Style.fontSizeS
                 color: Color.mOnSurfaceVariant
-                Layout.fillWidth: true
-                elide: Text.ElideRight
-            }
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    //  Sub-components
-    // ═══════════════════════════════════════════════════════════
-
-    component CategoryBadge: MouseArea {
-        id: catBadge
-        property string label: ""
-        property int    count: 0
-        property color  badgeColor: Color.mPrimary
-        signal clicked()
-
-        implicitWidth:  badgeRow.width + 16
-        implicitHeight: 30
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-
-        Rectangle {
-            anchors.fill: parent
-            radius: Style.radiusM
-            color: catBadge.containsMouse ? Color.mSurfaceVariant : Color.mSurface
-            border.color: catBadge.containsMouse ? catBadge.badgeColor : "transparent"
-            border.width: 1
-
-            Row {
-                id: badgeRow
-                anchors.centerIn: parent
-                spacing: 4
-
-                NText {
-                    text: catBadge.label
-                    font.pixelSize: Style.fontSizeS
-                    color: Color.mOnSurface
-                }
-                Rectangle {
-                    width: countLbl.width + 8
-                    height: 16
-                    radius: 8
-                    color: Qt.rgba(catBadge.badgeColor.r, catBadge.badgeColor.g, catBadge.badgeColor.b, 0.15)
-
-                    NText {
-                        id: countLbl
-                        anchors.centerIn: parent
-                        text: catBadge.count
-                        font.pixelSize: Style.fontSizeS
-                        font.bold: true
-                        color: catBadge.badgeColor
-                    }
-                }
-            }
-        }
-
-        onClicked: catBadge.clicked()
-    }
-
-    component PackageDelegate: ItemDelegate {
-        id: pkgDel
-        property string pkgName: ""
-        property string pkgVersion: ""
-        property string pkgSource: ""
-        property string pkgSize: ""
-        signal updateRequested()
-
-        height: 38
-        padding: 2
-
-        background: Rectangle {
-            color: pkgDel.hovered ? Color.mSurfaceVariant : "transparent"
-            radius: Style.radiusM
-        }
-
-        contentItem: RowLayout {
-            spacing: Style.marginS
-
-            // Source dot
-            Rectangle {
-                width: 6; height: 6; radius: 3
-                color: pkgDel.pkgSource === "pacman" ? Color.mPrimary :
-                       pkgDel.pkgSource === "aur"     ? Color.mSecondary :
-                                                       Color.mTertiary
-            }
-
-            ColumnLayout {
-                spacing: 0
-                Layout.fillWidth: true
-
-                NText {
-                    text: pkgDel.pkgName
-                    font.pixelSize: Style.fontSizeM
-                    Layout.fillWidth: true
-                    elide: Text.ElideRight
-                }
-                NText {
-                    text: pkgDel.pkgVersion + (pkgDel.pkgSize ? "  (" + pkgDel.pkgSize + ")" : "")
-                    font.pixelSize: Style.fontSizeS
-                    color: Color.mOnSurfaceVariant
-                    Layout.fillWidth: true
-                    elide: Text.ElideRight
-                }
-            }
-
-            // Source tag
-            Rectangle {
-                width: srcLbl.width + 8
-                height: 14
-                radius: 3
-                color: Qt.rgba(
-                    pkgDel.pkgSource === "pacman" ? Color.mPrimary.r :
-                    pkgDel.pkgSource === "aur"     ? Color.mSecondary.r : Color.mTertiary.r,
-                    pkgDel.pkgSource === "pacman" ? Color.mPrimary.g :
-                    pkgDel.pkgSource === "aur"     ? Color.mSecondary.g : Color.mTertiary.g,
-                    pkgDel.pkgSource === "pacman" ? Color.mPrimary.b :
-                    pkgDel.pkgSource === "aur"     ? Color.mSecondary.b : Color.mTertiary.b,
-                    0.15
-                )
-
-                NText {
-                    id: srcLbl
-                    anchors.centerIn: parent
-                    text: pkgDel.pkgSource.toUpperCase()
-                    font.pixelSize: 8
-                    font.bold: true
-                    color: pkgDel.pkgSource === "pacman" ? Color.mPrimary :
-                           pkgDel.pkgSource === "aur"     ? Color.mSecondary : Color.mTertiary
-                }
-            }
-
-            // Update button
-            NIconButton {
-                icon: "go-up"
-                iconSize: Style.fontSizeS
-                baseSize: 24
-                onClicked: pkgDel.updateRequested()
+                Layout.fillWidth: true; elide: Text.ElideRight
             }
         }
     }

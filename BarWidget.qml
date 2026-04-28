@@ -7,13 +7,11 @@ import qs.Services.UI
 
 /*  Alisupen – BarWidget.qml
  *  Top-bar widget for Noctalia Shell.
- *  Displays a compact update-count badge; clicking opens the panel.
- *
- *  Root type MUST be Item — Noctalia's bar loader instantiates this
- *  and injects required properties (pluginApi, screen, widgetId, etc.).
+ *  Uses NIconButton — the proven pattern from official plugins.
+ *  Clicking toggles the panel via pluginApi.togglePanel().
  */
 
-Item {
+NIconButton {
     id: root
 
     // ── Injected by Noctalia PluginService (REQUIRED) ────────
@@ -27,27 +25,31 @@ Item {
     // ── Convenience access to Main.qml ───────────────────────
     readonly property var mainInstance: pluginApi?.mainInstance ?? null
 
-    // ── Per-screen bar properties ────────────────────────────
-    readonly property string screenName: screen?.name ?? ""
-    readonly property string barPosition: Settings.getBarPositionForScreen(screenName)
-    readonly property bool isBarVertical: barPosition === "left" || barPosition === "right"
-    readonly property real capsuleHeight: Style.getCapsuleHeightForScreen(screenName)
-    readonly property real barFontSize: Style.getBarFontSizeForScreen(screenName)
-
     // ── Update counts from Main ──────────────────────────────
     readonly property int pacmanCount: mainInstance?.pacmanCount ?? 0
     readonly property int aurCount: mainInstance?.aurCount ?? 0
     readonly property int flatpakCount: mainInstance?.flatpakCount ?? 0
     readonly property int totalCount: pacmanCount + aurCount + flatpakCount
     readonly property bool isRefreshing: mainInstance?.isRefreshing ?? false
-    readonly property bool isUpdating: mainInstance?.isUpdating ?? false
 
-    // ── Layout ───────────────────────────────────────────────
-    readonly property real contentWidth: contentRow.implicitWidth + Style.marginM * 2
-    readonly property real contentHeight: capsuleHeight
+    // ── Per-screen properties ────────────────────────────────
+    readonly property string screenName: screen?.name ?? ""
+    readonly property real capsuleHeight: Style.getCapsuleHeightForScreen(screenName)
+    readonly property real barFontSize: Style.getBarFontSizeForScreen(screenName)
 
-    implicitWidth: contentWidth
-    implicitHeight: contentHeight
+    // ── NIconButton config ───────────────────────────────────
+    icon: "system-software-update"
+    tooltipText: root.totalCount > 0
+        ? root.totalCount + " update(s) pending"
+        : "System is up to date"
+    tooltipDirection: BarService.getTooltipDirection(screenName)
+    baseSize: capsuleHeight
+    applyUiScale: false
+    customRadius: Style.radiusL
+    colorBg: Style.capsuleColor
+    colorFg: root.totalCount > 0 ? Color.mError : Color.mOnSurfaceVariant
+    border.color: Style.capsuleBorderColor
+    border.width: Style.capsuleBorderWidth
 
     // ── Pulsing opacity when refreshing ──────────────────────
     SequentialAnimation on opacity {
@@ -57,87 +59,10 @@ Item {
         NumberAnimation { from: 0.5; to: 1.0; duration: 600; easing.type: Easing.InOutQuad }
     }
 
-    // ═══════════════════════════════════════════════════════════
-    //  Visual capsule (standard Noctalia bar widget pattern)
-    // ═══════════════════════════════════════════════════════════
-    Rectangle {
-        id: visualCapsule
-        x: Style.pixelAlignCenter(parent.width, width)
-        y: Style.pixelAlignCenter(parent.height, height)
-        width: root.contentWidth
-        height: root.contentHeight
-        color: mouseArea.containsMouse ? Color.mHover : Style.capsuleColor
-        radius: Style.radiusL
-        border.color: Style.capsuleBorderColor
-        border.width: Style.capsuleBorderWidth
-
-        RowLayout {
-            id: contentRow
-            anchors.centerIn: parent
-            spacing: Style.marginS
-
-            // Update icon using NIcon
-            NIcon {
-                icon: "system-software-update"
-                iconSize: root.barFontSize
-                color: root.totalCount > 0 ? Color.mError : Color.mOnSurfaceVariant
-                Layout.alignment: Qt.AlignVCenter
-            }
-
-            // Count label
-            NText {
-                text: root.isRefreshing ? "…" :
-                      root.totalCount > 0 ? root.totalCount.toString() : "OK"
-                font.pixelSize: root.barFontSize
-                font.bold: true
-                color: root.isRefreshing ? Color.mOnSurfaceVariant :
-                       root.totalCount > 0 ? Color.mError : Color.mOnSurfaceVariant
-                Layout.alignment: Qt.AlignVCenter
-            }
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    //  Mouse area (separate from visual, covers full widget area)
-    // ═══════════════════════════════════════════════════════════
-    MouseArea {
-        id: mouseArea
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-
-        onClicked: {
-            if (pluginApi) {
-                pluginApi.togglePanel(root.screen, visualCapsule)
-            }
-        }
-
-        // Tooltip using HoverHandler + NText popup
-        // (TooltipService is a singleton, NOT an attached property)
-        hoverEnabled: true
-    }
-
-    // ── Tooltip on hover ──────────────────────────────────────
-    // We show a simple tooltip popup near the capsule on hover
-    Rectangle {
-        id: tooltip
-        visible: mouseArea.containsMouse
-        x: visualCapsule.x + (visualCapsule.width - width) / 2
-        y: visualCapsule.y + visualCapsule.height + 4
-        width: tooltipText.width + 12
-        height: tooltipText.height + 8
-        color: Color.mSurfaceVariant
-        radius: Style.radiusS
-        z: 100
-
-        NText {
-            id: tooltipText
-            anchors.centerIn: parent
-            text: root.totalCount > 0
-                ? root.totalCount + " update(s) pending"
-                : "System is up to date"
-            font.pixelSize: Style.fontSizeS
-            color: Color.mOnSurface
+    // ── Click handler ────────────────────────────────────────
+    onClicked: {
+        if (pluginApi) {
+            pluginApi.togglePanel(root.screen, root)
         }
     }
 }

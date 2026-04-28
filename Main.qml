@@ -83,11 +83,14 @@ Item {
     Process {
         id: detectParu
         command: ["which", "paru"]
-        stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
-            if (code === 0) {
+        stdout: StdioCollector {
+            onStreamFinished: {
+                // paru found
                 service.detectedHelper = "paru"
-            } else {
+            }
+        }
+        onExited: function(code, status) {
+            if (code !== 0) {
                 detectYay.running = true
             }
         }
@@ -97,10 +100,14 @@ Item {
         id: detectYay
         running: false
         command: ["which", "yay"]
-        stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
-            service.detectedHelper = (code === 0) ? "yay" : ""
-            if (service.detectedHelper === "") {
+        stdout: StdioCollector {
+            onStreamFinished: {
+                service.detectedHelper = "yay"
+            }
+        }
+        onExited: function(code, status) {
+            if (code !== 0) {
+                service.detectedHelper = ""
                 service.statusMessage = "No AUR helper found (install paru or yay)"
             }
         }
@@ -118,6 +125,8 @@ Item {
 
     // ═══════════════════════════════════════════════════════════
     //  Process helpers for update checks
+    //  Using static command arrays to avoid binding issues.
+    //  For dynamic commands (AUR helper), we use execDetached.
     // ═══════════════════════════════════════════════════════════
 
     // ── Pacman check ─────────────────────────────────────────
@@ -126,56 +135,20 @@ Item {
         command: ["pacman", "-Qu"]
         stdout: StdioCollector {
             onStreamFinished: {
-                var lines = this.text.trim()
-                var pkgs = []
-                if (lines.length > 0) {
-                    var items = lines.split("\n")
-                    for (var i = 0; i < items.length; i++) {
-                        var line = items[i].trim()
-                        if (line.length === 0) continue
-                        var match = line.match(/^(\S+)\s+(\S+)\s+->\s+(\S+)/)
-                        if (match) {
-                            pkgs.push({ name: match[1], version: match[3], source: "pacman", size: "" })
-                        } else {
-                            var parts = line.split(/\s+/)
-                            if (parts.length >= 1) {
-                                pkgs.push({ name: parts[0], version: parts.length > 1 ? parts[parts.length-1] : "?", source: "pacman", size: "" })
-                            }
-                        }
-                    }
-                }
-                service._pacmanResult = pkgs
+                service._pacmanResult = service.parseUpdateOutput(this.text, "pacman")
                 service._pacmanDone = true
                 service._maybeFinishRefresh()
             }
         }
     }
 
-    // ── AUR check ────────────────────────────────────────────
+    // ── AUR check (dynamic helper — use shell wrapper) ───────
     Process {
         id: checkAur
-        command: [service.effectiveAurHelper(), "-Qua"]
+        command: ["sh", "-c", "paru -Qua 2>/dev/null || yay -Qua 2>/dev/null || true"]
         stdout: StdioCollector {
             onStreamFinished: {
-                var lines = this.text.trim()
-                var pkgs = []
-                if (lines.length > 0) {
-                    var items = lines.split("\n")
-                    for (var i = 0; i < items.length; i++) {
-                        var line = items[i].trim()
-                        if (line.length === 0) continue
-                        var match = line.match(/^(\S+)\s+(\S+)\s+->\s+(\S+)/)
-                        if (match) {
-                            pkgs.push({ name: match[1], version: match[3], source: "aur", size: "" })
-                        } else {
-                            var parts = line.split(/\s+/)
-                            if (parts.length >= 1) {
-                                pkgs.push({ name: parts[0], version: parts.length > 1 ? parts[parts.length-1] : "?", source: "aur", size: "" })
-                            }
-                        }
-                    }
-                }
-                service._aurResult = pkgs
+                service._aurResult = service.parseUpdateOutput(this.text, "aur")
                 service._aurDone = true
                 service._maybeFinishRefresh()
             }
@@ -196,7 +169,7 @@ Item {
                         var line = items[i].trim()
                         if (line.length === 0 || line.startsWith("Ref")) continue
                         var parts = line.split(/\s+/)
-                        if (parts.length >= 1) {
+                        if (parts.length >= 1 && parts[0].indexOf(".") !== -1) {
                             pkgs.push({ name: parts[0], version: parts.length > 1 ? parts[1] : "?", source: "flatpak", size: "" })
                         }
                     }
@@ -206,6 +179,29 @@ Item {
                 service._maybeFinishRefresh()
             }
         }
+    }
+
+    // ── Parser for pacman/AUR output ─────────────────────────
+    function parseUpdateOutput(text, source) {
+        var lines = text.trim()
+        var pkgs = []
+        if (lines.length === 0) return pkgs
+        var items = lines.split("\n")
+        for (var i = 0; i < items.length; i++) {
+            var line = items[i].trim()
+            if (line.length === 0) continue
+            // Format: "pkgname old_version -> new_version"
+            var match = line.match(/^(\S+)\s+(\S+)\s+->\s+(\S+)/)
+            if (match) {
+                pkgs.push({ name: match[1], version: match[3], source: source, size: "" })
+            } else {
+                var parts = line.split(/\s+/)
+                if (parts.length >= 1) {
+                    pkgs.push({ name: parts[0], version: parts.length > 1 ? parts[parts.length-1] : "?", source: source, size: "" })
+                }
+            }
+        }
+        return pkgs
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -230,19 +226,16 @@ Item {
         service._aurDone = !service.showAur
         service._flatpakDone = !service.showFlatpak
 
-        // If nothing to check
         if (service._pacmanDone && service._aurDone && service._flatpakDone) {
             service.isRefreshing = false
             service.statusMessage = "No sources enabled"
             return
         }
 
-        // Fire off checks
         if (service.showPacman)  checkPacman.running = true
         if (service.showAur)     checkAur.running = true
         if (service.showFlatpak) checkFlatpak.running = true
 
-        // If all sources are disabled, finish immediately
         service._maybeFinishRefresh()
     }
 
@@ -253,16 +246,13 @@ Item {
         var pacCount = 0, aCount = 0, flatCount = 0
 
         for (var i = 0; i < service._pacmanResult.length; i++) {
-            allPkgs.push(service._pacmanResult[i])
-            pacCount++
+            allPkgs.push(service._pacmanResult[i]); pacCount++
         }
         for (var i = 0; i < service._aurResult.length; i++) {
-            allPkgs.push(service._aurResult[i])
-            aCount++
+            allPkgs.push(service._aurResult[i]); aCount++
         }
         for (var i = 0; i < service._flatpakResult.length; i++) {
-            allPkgs.push(service._flatpakResult[i])
-            flatCount++
+            allPkgs.push(service._flatpakResult[i]); flatCount++
         }
 
         // Filter excluded
@@ -271,10 +261,7 @@ Item {
         for (var i = 0; i < allPkgs.length; i++) {
             var isExcluded = false
             for (var j = 0; j < excludedList.length; j++) {
-                if (allPkgs[i].name === excludedList[j]) {
-                    isExcluded = true
-                    break
-                }
+                if (allPkgs[i].name === excludedList[j]) { isExcluded = true; break }
             }
             if (!isExcluded) filtered.push(allPkgs[i])
         }
@@ -296,46 +283,44 @@ Item {
         var total = pacCount + aCount + flatCount
         service.statusMessage = total > 0 ? total + " update(s) available" : "System is up to date"
 
-        // Desktop notification
         if (total > 0) {
             notifyUpdates(total, pacCount, aCount, flatCount)
         }
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  Update All
+    //  Update commands — use execDetached for simple fire-and-forget
+    //  For commands that need feedback, use Process with static command.
     // ═══════════════════════════════════════════════════════════
+
+    // ── Pacman system upgrade ────────────────────────────────
     Process {
-        id: updatePacman
-        command: ["pkexec", "pacman", "-Syu", "--noconfirm"]
+        id: updatePacmanProc
+        command: ["sh", "-c", "pkexec pacman -Syu --noconfirm"]
         stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
+        onExited: function(code, status) {
             if (code !== 0) service.statusMessage = "Pacman update failed (exit " + code + ")"
             service._runNextUpdateCommand()
         }
     }
 
+    // ── AUR upgrade (dynamic helper via sh -c) ──────────────
     Process {
-        id: updateAur
-        command: {
-            var helper = service.effectiveAurHelper()
-            var args = [helper, "-Syu", "--noconfirm"]
-            if (service.skipPkgbuild) args.push("--noconfirm")
-            if (service.removeBuildDeps) args.push("--removemake")
-            return args
-        }
+        id: updateAurProc
+        command: ["sh", "-c", "paru -Syu --noconfirm --removemake 2>/dev/null || yay -Syu --noconfirm --removemake 2>/dev/null || true"]
         stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
+        onExited: function(code, status) {
             if (code !== 0) service.statusMessage = "AUR update failed (exit " + code + ")"
             service._runNextUpdateCommand()
         }
     }
 
+    // ── Flatpak upgrade ─────────────────────────────────────
     Process {
-        id: updateFlatpak
+        id: updateFlatpakProc
         command: ["flatpak", "update", "-y"]
         stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
+        onExited: function(code, status) {
             if (code !== 0) service.statusMessage = "Flatpak update failed (exit " + code + ")"
             service._runNextUpdateCommand()
         }
@@ -368,7 +353,6 @@ Item {
 
     function _runNextUpdateCommand() {
         if (service._updateQueueIndex >= service._updateQueue.length) {
-            // All done
             service.isUpdating = false
             service.updateProgress = 1.0
             service.statusMessage = "Update complete"
@@ -381,120 +365,66 @@ Item {
         service.statusMessage = "Updating " + current + "…"
         service.updateProgress = service._updateQueueIndex / service._updateQueue.length
 
-        if (current === "pacman") {
-            updatePacman.running = true
-        } else if (current === "aur") {
-            updateAur.running = true
-        } else if (current === "flatpak") {
-            updateFlatpak.running = true
-        }
+        if (current === "pacman")       updatePacmanProc.running = true
+        else if (current === "aur")     updateAurProc.running = true
+        else if (current === "flatpak") updateFlatpakProc.running = true
 
         service._updateQueueIndex++
     }
 
     // ── Category update ──────────────────────────────────────
-    Process {
-        id: updateCategoryPacman
-        command: ["pkexec", "pacman", "-Syu", "--noconfirm"]
-        stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
-            service.isUpdating = false
-            service.statusMessage = code === 0 ? "Pacman updated" : "Pacman update failed"
-            resetProgressTimer.start()
-            service.refresh()
-        }
-    }
-
-    Process {
-        id: updateCategoryAur
-        command: {
-            var helper = service.effectiveAurHelper()
-            var args = [helper, "-Syu", "--noconfirm"]
-            if (service.skipPkgbuild) args.push("--noconfirm")
-            if (service.removeBuildDeps) args.push("--removemake")
-            return args
-        }
-        stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
-            service.isUpdating = false
-            service.statusMessage = code === 0 ? "AUR updated" : "AUR update failed"
-            resetProgressTimer.start()
-            service.refresh()
-        }
-    }
-
-    Process {
-        id: updateCategoryFlatpak
-        command: ["flatpak", "update", "-y"]
-        stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
-            service.isUpdating = false
-            service.statusMessage = code === 0 ? "Flatpak updated" : "Flatpak update failed"
-            resetProgressTimer.start()
-            service.refresh()
-        }
-    }
-
     function updateCategory(category: string) {
         if (service.isUpdating || service.isRefreshing) return
         service.isUpdating = true
         service.updateProgress = 0
         service.statusMessage = "Updating " + category + "…"
 
-        if (category === "pacman")       updateCategoryPacman.running = true
-        else if (category === "aur")     updateCategoryAur.running = true
-        else if (category === "flatpak") updateCategoryFlatpak.running = true
-    }
-
-    // ── Single package update ────────────────────────────────
-    Process {
-        id: updateSinglePkg
-        property string pkgName: ""
-        property string pkgSource: ""
-        command: {
-            if (pkgSource === "pacman")       return ["pkexec", "pacman", "-S", pkgName, "--noconfirm"]
-            else if (pkgSource === "aur")     {
-                var helper = service.effectiveAurHelper()
-                var args = [helper, "-S", pkgName, "--noconfirm"]
-                if (service.skipPkgbuild) args.push("--noconfirm")
-                if (service.removeBuildDeps) args.push("--removemake")
-                return args
-            }
-            else                              return ["flatpak", "update", "-y", pkgName]
-        }
-        stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
+        if (category === "pacman") {
+            Quickshell.execDetached(["sh", "-c", "pkexec pacman -Syu --noconfirm"])
             service.isUpdating = false
-            service.statusMessage = code === 0 ? pkgName + " updated" : pkgName + " failed"
+            service.statusMessage = "Pacman update launched"
+            service.refresh()
+        } else if (category === "aur") {
+            Quickshell.execDetached(["sh", "-c", "paru -Syu --noconfirm --removemake 2>/dev/null || yay -Syu --noconfirm --removemake 2>/dev/null"])
+            service.isUpdating = false
+            service.statusMessage = "AUR update launched"
+            service.refresh()
+        } else if (category === "flatpak") {
+            Quickshell.execDetached(["flatpak", "update", "-y"])
+            service.isUpdating = false
+            service.statusMessage = "Flatpak update launched"
             service.refresh()
         }
     }
 
+    // ── Single package update ────────────────────────────────
     function updatePackage(pkgName: string, source: string) {
         if (service.isUpdating || service.isRefreshing) return
         service.isUpdating = true
         service.updateProgress = 0
         service.statusMessage = "Updating " + pkgName + "…"
-        updateSinglePkg.pkgName = pkgName
-        updateSinglePkg.pkgSource = source
-        updateSinglePkg.running = true
+
+        if (source === "pacman") {
+            Quickshell.execDetached(["pkexec", "pacman", "-S", pkgName, "--noconfirm"])
+        } else if (source === "aur") {
+            var helper = service.effectiveAurHelper()
+            Quickshell.execDetached([helper, "-S", pkgName, "--noconfirm"])
+        } else {
+            Quickshell.execDetached(["flatpak", "update", "-y", pkgName])
+        }
+
+        service.isUpdating = false
+        service.statusMessage = pkgName + " update launched"
+        service.refresh()
     }
 
     // ═══════════════════════════════════════════════════════════
     //  Remove Pacman Lock
     // ═══════════════════════════════════════════════════════════
-    Process {
-        id: removeLockProc
-        command: ["pkexec", "rm", "-f", "/var/lib/pacman/db.lck"]
-        stdout: StdioCollector { onStreamFinished: {} }
-        onExited: function(code) {
-            service.statusMessage = code === 0 ? "Lock removed" : "Failed to remove lock"
-        }
-    }
-
     function removeLock() {
         service.statusMessage = "Removing pacman lock…"
-        removeLockProc.running = true
+        Quickshell.execDetached(["pkexec", "rm", "-f", "/var/lib/pacman/db.lck"])
+        service.statusMessage = "Lock removal launched"
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -502,9 +432,7 @@ Item {
     // ═══════════════════════════════════════════════════════════
     Process {
         id: notifyProc
-        property string summary: ""
-        property string body: ""
-        command: ["notify-send", "-a", "Alisupen", "-i", "system-software-update", "-u", "normal", summary, body]
+        command: ["notify-send", "-a", "Alisupen", "-i", "system-software-update", "-u", "normal", "0 updates", ""]
         stdout: StdioCollector { onStreamFinished: {} }
     }
 
@@ -514,9 +442,8 @@ Item {
         if (aur > 0)  body += (body ? ", " : "") + aur + " AUR"
         if (flat > 0) body += (body ? ", " : "") + flat + " Flatpak"
 
-        notifyProc.summary = total + " updates available"
-        notifyProc.body = body
-        notifyProc.running = true
+        // Use execDetached for simple fire-and-forget notification
+        Quickshell.execDetached(["notify-send", "-a", "Alisupen", "-i", "system-software-update", "-u", "normal", total + " updates available", body])
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -525,9 +452,7 @@ Item {
     Timer {
         id: resetProgressTimer
         interval: 2000
-        onTriggered: {
-            service.updateProgress = 0
-        }
+        onTriggered: service.updateProgress = 0
     }
 
     Timer {
