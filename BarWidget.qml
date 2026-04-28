@@ -76,11 +76,11 @@ Item {
             anchors.centerIn: parent
             spacing: Style.marginS
 
-            // Update icon
+            // Update icon using NIcon
             NIcon {
                 icon: "system-software-update"
                 iconSize: root.barFontSize
-                colorKey: root.totalCount > 0 ? "error" : "success"
+                color: root.totalCount > 0 ? Color.mError : Color.mOnSurfaceVariant
                 Layout.alignment: Qt.AlignVCenter
             }
 
@@ -111,12 +111,33 @@ Item {
                 pluginApi.togglePanel(root.screen, visualCapsule)
             }
         }
+
+        // Tooltip using HoverHandler + NText popup
+        // (TooltipService is a singleton, NOT an attached property)
+        hoverEnabled: true
     }
 
-    // ── Tooltip ───────────────────────────────────────────────
-    TooltipService.tooltipTarget: visualCapsule
-    TooltipService.tooltipText: root.totalCount > 0
-        ? qsTr("%n update(s) pending", "", root.totalCount)
-        : qsTr("System is up to date")
-    TooltipService.tooltipDirection: BarService.getTooltipDirection(screenName)
+    // ── Tooltip on hover ──────────────────────────────────────
+    // We show a simple tooltip popup near the capsule on hover
+    Rectangle {
+        id: tooltip
+        visible: mouseArea.containsMouse
+        x: visualCapsule.x + (visualCapsule.width - width) / 2
+        y: visualCapsule.y + visualCapsule.height + 4
+        width: tooltipText.width + 12
+        height: tooltipText.height + 8
+        color: Color.mSurfaceVariant
+        radius: Style.radiusS
+        z: 100
+
+        NText {
+            id: tooltipText
+            anchors.centerIn: parent
+            text: root.totalCount > 0
+                ? root.totalCount + " update(s) pending"
+                : "System is up to date"
+            font.pixelSize: Style.fontSizeS
+            color: Color.mOnSurface
+        }
+    }
 }
